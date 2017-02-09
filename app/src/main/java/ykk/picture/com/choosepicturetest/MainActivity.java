@@ -1,5 +1,6 @@
 package ykk.picture.com.choosepicturetest;
 
+import android.annotation.TargetApi;
 import android.content.ContentUris;
 import android.content.Intent;
 import android.database.Cursor;
@@ -13,6 +14,7 @@ import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.support.annotation.RequiresApi;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -83,7 +85,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    //第二个参数是secondActivity传回来的键，第三个参数是secondActivity传回来的值。
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        //　第一个参数：这个整数requestCode用于与startActivityForResult中的requestCode中值进行比较判断，
+        // 是以便确认返回的数据是从哪个Activity返回的。
         switch (requestCode)
         {
             case TAKE_PHOTO:
@@ -113,17 +118,21 @@ public class MainActivity extends AppCompatActivity {
                 if(resultCode==RESULT_OK)
                 {
                     //判断手机系统版本号
-                    if(Build.VERSION.SDK_INT>=19)
+                    if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.KITKAT)
                     {
-                        //4.4及以上使用此方法处理图片
+                        //4.4及以上使用此方法处理图片,需要解析封装过的Uri.
+                        //目的是需要获取图片的真实路径。
                         handleImageOnKitKat(data);
+
                     }
                     else
                     {
-                        //4.4以下使用此方法处理图片
+                        //4.4以下使用此方法处理图片，直接可以得到图片的真实路径。
                         handleImageBeforeKitKat(data);
+                        Log.d("handleImageBeforeKitKat","<19");
                     }
                 }
+                break;
             default:
                 break;
         }
@@ -135,32 +144,29 @@ public class MainActivity extends AppCompatActivity {
         displayImage(imagePath);
     }
 //  >=4.4
-    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
+    @TargetApi(Build.VERSION_CODES.KITKAT)
+    //Android4.4以上获取路径的方法
     private void handleImageOnKitKat(Intent data) {
         String imagePath=null;
         Uri uri=data.getData();
-        if(DocumentsContract.isDocumentUri(this,uri))
-        {
+        if(DocumentsContract.isDocumentUri(this,uri)) {
             //如果是document类型的uri,则通过document id处理
-            String docId=DocumentsContract.getDocumentId(uri);
-            if("com.android.providers.media.documents".equals(uri.getAuthority()))
-            {
-                String id=docId.split(":")[1];//解析出数字格式的Id
-                String selection= MediaStore.Images.Media._ID+"="+id;
-                imagePath=getImagePath(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,selection);
+            String docId = DocumentsContract.getDocumentId(uri);
+            if ("com.android.providers.media.documents".equals(uri.getAuthority())) {
+                String id = docId.split(":")[1];//解析出数字格式的Id
+                String selection = MediaStore.Images.Media._ID + "=" + id;
+                imagePath = getImagePath(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, selection);
+            } else if ("com.android.provider.downloads.documents".equals(uri.getAuthority())) {
+                Uri contentUri = ContentUris.withAppendedId(uri.parse("content://downloads/public_downloads"), Long.valueOf(docId));
+                imagePath = getImagePath(contentUri, null);
             }
-            else if ("com.android.provider.downloads.documents".equals(uri.getAuthority()))
-            {
-                Uri contentUri= ContentUris.withAppendedId(uri.parse("content://downloads/public_downloads"),Long.valueOf(docId));
-                imagePath=getImagePath(contentUri,null);
-            }
+        }
             else if("content".equalsIgnoreCase(uri.getScheme()))
             {
                 //如果不是document类型的Uri，则使用普通方式处理.
                 imagePath=getImagePath(uri,null);
             }
             displayImage(imagePath);//根据图片的路径显示图片
-        }
     }
 
     private void displayImage(String imagePath) {
